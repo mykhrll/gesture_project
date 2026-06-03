@@ -53,6 +53,17 @@ while True:
 
     img = cv2.flip(img,1)
 
+    # ------------------------------
+    # CROP KAMERA 1:1 (Dilakukan di awal agar AI melihat gambar yang sama dengan UI)
+    # ------------------------------
+    h, w, _ = img.shape
+    size = min(h, w)
+    start_x = (w - size) // 2
+    start_y = (h - size) // 2
+
+    img = img[start_y:start_y+size, start_x:start_x+size]
+    img = cv2.resize(img,(500,500))
+
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     results = hands.process(img_rgb)
@@ -69,13 +80,13 @@ while True:
                 mp_hands.HAND_CONNECTIONS
             )
 
-            h, w, c = img.shape
             lm_list = []
 
             for id, lm in enumerate(hand_lms.landmark):
 
-                cx = int(lm.x * w)
-                cy = int(lm.y * h)
+                # Koordinat disesuaikan dengan ukuran gambar yang baru (500x500)
+                cx = int(lm.x * 500)
+                cy = int(lm.y * 500)
 
                 lm_list.append((id, cx, cy))
 
@@ -89,16 +100,15 @@ while True:
                 if lm_list[tip][2] < lm_list[pip][2]:
 
                     fingers.append(1)
-
                     cv2.circle(img,(lm_list[tip][1],lm_list[tip][2]),10,(0,255,0),cv2.FILLED)
 
                 else:
 
                     fingers.append(0)
-
                     cv2.circle(img,(lm_list[tip][1],lm_list[tip][2]),10,(0,0,255),cv2.FILLED)
 
             total_fingers = sum(fingers)
+            break # Hanya memproses 1 tangan
 
     # ------------------------------
     # STABILISASI GESTURE
@@ -113,53 +123,46 @@ while True:
 
         current_time = time.time()
 
-        if total_fingers != previous_fingers and current_time - last_action > cooldown:
+        if total_fingers != previous_fingers:
+            
+            # Jika 0 jari (tangan ditutup), langsung reset tanpa memicu cooldown
+            if total_fingers == 0:
+                previous_fingers = 0
+            
+            # Cek cooldown hanya untuk aksi nyata (1, 2, 3, 4 jari)
+            elif current_time - last_action > cooldown:
 
-            if total_fingers == 1:
+                if total_fingers == 1:
 
-                print("KANAN")
-                pyautogui.press("right")
+                    print("KANAN (1 Jari)")
+                    pyautogui.press("right")
 
-            elif total_fingers == 2:
+                elif total_fingers == 2:
 
-                print("KIRI")
-                pyautogui.press("left")
+                    print("KIRI (2 Jari)")
+                    pyautogui.press("left")
 
-            elif total_fingers == 3:
+                elif total_fingers == 3:
 
-                print("LOMPAT")
-                pyautogui.press("up")
+                    print("LOMPAT (3 Jari)")
+                    pyautogui.press("up")
 
-            elif total_fingers == 4:
+                elif total_fingers == 4:
 
-                print("SLIDE")
-                pyautogui.press("down")
+                    print("SLIDE (4 Jari)")
+                    pyautogui.press("down")
 
-            previous_fingers = total_fingers
-            last_action = current_time
-
-    # ------------------------------
-    # CROP KAMERA 1:1
-    # ------------------------------
-
-    h, w, _ = img.shape
-    size = min(h, w)
-
-    start_x = (w - size) // 2
-    start_y = (h - size) // 2
-
-    img_square = img[start_y:start_y+size, start_x:start_x+size]
-
-    img_square = cv2.resize(img_square,(500,500))
+                previous_fingers = total_fingers
+                last_action = current_time
 
     # ------------------------------
-    # UI (DITAMPILKAN SETELAH CROP)
+    # UI
     # ------------------------------
 
-    cv2.rectangle(img_square,(0,0),(300,80),(0,0,0),-1)
+    cv2.rectangle(img,(0,0),(300,80),(0,0,0),-1)
 
     cv2.putText(
-        img_square,
+        img,
         f"Jumlah Jari: {total_fingers}",
         (10,50),
         cv2.FONT_HERSHEY_SIMPLEX,
@@ -168,7 +171,7 @@ while True:
         2
     )
 
-    cv2.imshow("AI Finger Gesture Controller", img_square)
+    cv2.imshow("AI Finger Gesture Controller", img)
 
     if cv2.waitKey(1) & 0xFF == ord("q"):
         break
